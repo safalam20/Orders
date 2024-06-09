@@ -15,22 +15,45 @@ public class Order(Guid id, bool completeDeliveryRequired, Priority priority, Li
 
     public bool CanFulfillOrder(List<Sku> skus)
     {
+        var totalRequiredQuantities = new Dictionary<Guid, int>();
+
         foreach (var item in Items)
         {
+            if (totalRequiredQuantities.ContainsKey(item.Product.Id))
+            {
+                totalRequiredQuantities[item.Product.Id] += item.Quantity;
+            }
+            else
+            {
+                totalRequiredQuantities[item.Product.Id] = item.Quantity;
+            }
+        }
+
+        bool canFulfillAtLeastOne = false;
+
+        foreach (var required in totalRequiredQuantities)
+        {
             var totalAvailableQuantity = skus
-                .Where(s => s.Product.Id == item.Product.Id)
+                .Where(s => s.Product.Id == required.Key)
                 .Sum(s => s.GetAvailableQuantity());
 
-            if (CompleteDeliveryRequired && totalAvailableQuantity < item.Quantity)
+            if (totalAvailableQuantity >= required.Value)
             {
+                canFulfillAtLeastOne = true;
+            }
+
+            if (CompleteDeliveryRequired && totalAvailableQuantity < required.Value)
+            {
+                var product = Items.First(item => item.Product.Id == required.Key).Product;
                 Console.WriteLine(
-                    $"Cannot fulfill order for product {item.Product.Name} due to insufficient stock. Available: {totalAvailableQuantity}, Required: {item.Quantity}, Complete Delivery Required: {CompleteDeliveryRequired}");
+                    $"Cannot fulfill order for product {product.Name} due to insufficient stock. Available: {totalAvailableQuantity}, Required: {required.Value}, Complete Delivery Required: {CompleteDeliveryRequired}");
                 return false;
             }
         }
 
-        return true;
+        return canFulfillAtLeastOne;
     }
+
 
     public void FulfillOrder(List<Sku> skus)
     {
